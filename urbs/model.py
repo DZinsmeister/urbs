@@ -372,6 +372,9 @@ def create_model(data, dt=1, timesteps=None, objective='cost',
             ' cap_pro * min_fraction * (r - R) / (1 - min_fraction)'
             ' + tau_pro * (R - min_fraction * r) / (1 - min_fraction)')
 
+    if m.mode['mip']:
+        m = add_MILP_equations(m)
+
     #if m.mode['int']:
     #    m.res_global_co2_limit = pyomo.Constraint(
     #        m.stf,
@@ -432,7 +435,7 @@ def create_model(data, dt=1, timesteps=None, objective='cost',
                                   "either 'cost' or 'CO2' as the objective in "
                                   "runme.py!")
 
-    if dual:
+    if (dual and m.mode['mip'] == False):
         m.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
 
     return m

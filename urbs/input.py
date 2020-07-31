@@ -55,6 +55,13 @@ def read_input(input_files, year):
                     .drop(['description'], axis=1))
             else:
                 support_timeframe = year
+
+            # create MILP index
+            if not global_prop.filter(like='MILP', axis=0).empty:
+                milp = global_prop.filter(like='MILP', axis=0).drop(['description'], axis=1)
+                global_prop = (global_prop.drop(milp.index))
+                milp = milp[milp.values == 'yes']
+
             global_prop = pd.concat([global_prop], keys=[support_timeframe],
                                     names=['support_timeframe'])
             gl.append(global_prop)
@@ -161,6 +168,7 @@ def read_input(input_files, year):
 
     data = {
         'global_prop': global_prop,
+        'MILP': milp,
         'site': site,
         'commodity': commodity,
         'process': process,
