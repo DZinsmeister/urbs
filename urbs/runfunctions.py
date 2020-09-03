@@ -8,6 +8,7 @@ from .plot import *
 from .input import *
 from .validation import *
 from .saveload import *
+from .features import *
 
 
 def prepare_result_directory(result_name):
@@ -104,6 +105,7 @@ def run_scenario(input_files, Solver, timesteps, scenario, result_dir, dt,
     optim = setup_solver(optim, logfile=log_filename)
     result = optim.solve(prob, tee=True)
     assert str(result.solver.termination_condition) == 'optimal'
+    validate_MILP_results(prob)
 
     # save problem solution (and input data) to HDF5 file
     save(prob, os.path.join(result_dir, '{}.h5'.format(sce)))

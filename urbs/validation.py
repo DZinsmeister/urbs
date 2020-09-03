@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import math
 
 def validate_input(data):
     """ Input validation function
@@ -70,7 +71,9 @@ def validate_input(data):
                 data['process'].loc[index]['cap-up']):
             raise ValueError('Ensure cap_lo <= cap_up and inst_cap <= cap_up'
                              ' for all processes.')
-
+    for index in data['process'].index:
+        if data['process'].loc[index]['min-fraction'] > 1:
+            raise ValueError('Ensure that min-fraction <= 1')
     if not data['transmission'].empty:
         for index in data['transmission'].index:
             if not (data['transmission'].loc[index]['cap-lo'] <=
@@ -173,6 +176,37 @@ def validate_input(data):
 
         if sum(data['type day'].loc[:,'weight_typeday'].dropna(axis=0, how='all')) != 8760:
             print('Warning: The sum of weighting_typeday does not equal a year')
+
+    # Identify inconsistency or problems while using MILP equations
+    if not data['MILP'].empty:
+        for i in data['process'].index.tolist():
+            if (data['process'].loc[i, 'min-fraction'] > 0 and (data['process'].loc[i, 'start-up-energy'] <= 0 or
+                                                               pd.isna(data['process'].loc[i, 'start-up-energy']))):
+                print('Warning: Start-up-costs for', i, 'are 0')
+        for i in data['process'].index.tolist():
+            if math.isinf(data['process'].loc[i, 'cap-up']):
+                raise ValueError('Can not use inf at cap-up', i, 'while using MILP min_cap')
+            if data['process'].loc[i, 'cap-up'] > 1e6:
+                print('Warning: Tolerance for integer variable is 1e-5, too high values might lead to unexpected '
+                      'behavior. Check cap-up at', i)
+        for i in data['transmission'].index.tolist():
+            if math.isinf(data['transmission'].loc[i, 'cap-up']):
+                raise ValueError('Can not use inf at cap-up', i, 'while using MILP min_cap')
+            if data['transmission'].loc[i, 'cap-up'] > 1e6:
+                print('Warning: Tolerance for integer variable is 1e-5, too high values might lead to unexpected '
+                      'behavior. Check cap-up at', i)
+        for i in data['storage'].index.tolist():
+            if math.isinf(data['storage'].loc[i, 'cap-up-c']):
+                raise ValueError('Can not use inf at cap-up-c', i, 'while using MILP min_cap')
+            if data['storage'].loc[i, 'cap-up-c'] > 1e6:
+                print('Warning: Tolerance for integer variable is 1e-5, too high values might lead to unexpected '
+                      'behavior. Check cap-up at', i)
+        for i in data['storage'].index.tolist():
+            if math.isinf(data['storage'].loc[i, 'cap-up-p']):
+                raise ValueError('Can not use inf at cap-up-p', i, 'while using MILP min_cap')
+            if data['storage'].loc[i, 'cap-up-p'] > 1e6:
+                print('Warning: Tolerance for integer variable is 1e-5, too high values might lead to unexpected '
+                      'behavior. Check cap-up at', i)
 
 # report that variable costs may have error if used with CO2 minimization and DCPF
 def validate_dc_objective(data, objective):

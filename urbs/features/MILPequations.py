@@ -1,81 +1,48 @@
-import math
-import pyomo.core as pyomo
+import pandas as pd
+from .MILP import *
+from urbs.pyomoio import get_entity
+
 
 def add_MILP_equations(m):
-
     if 'MILP min_cap' in m._data['MILP'].index:
         m = MILP_cap_min(m)
 
-    return (m)
+    if 'MILP partload' in m._data['MILP'].index:
+        # Choose MILP or MIQP, no clear preference on calculation speed yet
+        # m = MIQP_partload(m)
+        m = MILP_partload(m)
+
+    return m
 
 
+def validate_MILP_results(prob):
+    # Check if all MILP values are binary
+    # Necessary, because values are stored as float
+    # If the borders are too big, the values might not be binary anymore
+    cap_pro = get_entity(prob, 'cap_pro_build')
+    cap_sto = get_entity(prob, 'cap_sto_build')
+    cap_tra = get_entity(prob, 'cap_tra_build')
+    pro_mode_run = get_entity(prob, 'pro_mode_run')
+    pro_mode_startup = get_entity(prob, 'pro_mode_startup')
 
-def MILP_cap_min(m):
+    for i in cap_pro.index:
+        if not (cap_pro.loc[i] == 0 or cap_pro.loc[i] == 1 or pd.isna(cap_pro.loc[i])):
+            print('Warning, Boolean Value not 1 or 0:', i, cap_pro.loc[i])
 
-    # Binary Variable if MILP-cap_min is activated
-    m.cap_pro_build=pyomo.Var(
-        m.pro_tuples,
-        within=pyomo.Boolean,
-        doc='Boolean: True if new capacity is build. Needed for minimum new capacity')
+    for i in cap_sto.index:
+        if not (cap_sto.loc[i] == 0 or cap_sto.loc[i] == 1 or pd.isna(cap_sto.loc[i]) or cap_sto.loc[i] == 'None'):
+            print('Warning, Boolean Value not 1 or 0:', i, cap_sto.loc[i])
 
-    # Change expression m.cap_pro to a variable and an additional constraint (m.cap_pro_abs)
-    m.del_component(m.cap_pro)
-    m.cap_pro = pyomo.Var(
-        m.pro_tuples,
-        within=pyomo.NonNegativeReals,
-        doc='Total process capacity (MW)')
-    m.cap_pro_abs = pyomo.Constraint(
-        m.pro_tuples,
-        rule=cap_pro_abs_rule,
-        doc='capacity = cap_new + cap_installed')
+    for i in cap_tra.index:
+        if not (cap_tra.loc[i] == 0 or cap_tra.loc[i] == 1 or pd.isna(cap_tra.loc[i])):
+            print('Warning, Boolean Value not 1 or 0:', i, cap_tra.loc[i])
 
-    # Change the constraint m.res_process_capacity to a MILP constraint
-    m.del_component(m.res_process_capacity)
-    m.res_process_capacity_MILP_low = pyomo.Constraint(
-        m.pro_tuples,
-        rule=res_process_capacity_rule_low,
-        doc='[0/1] * process.cap-lo <= total process capacity <= process.cap-up')
-    m.res_process_capacity_MILP_up = pyomo.Constraint(
-        m.pro_tuples,
-        rule=res_process_capacity_rule_up,
-        doc='[0/1] * process.cap-lo <= total process capacity <= process.cap-up')
+    for i in pro_mode_run.index:
+        if not (pro_mode_run.loc[i] == 0 or pro_mode_run.loc[i] == 1 or pd.isna(pro_mode_run.loc[i])):
+            # raise ValueError(i, "Problem with binary value")
+            print('Warning, Boolean Value not 1 or 0:', i, pro_mode_run.loc[i])
 
-    return (m)
-
-# process capacity: capacity = cap_new + cap_installed
-def cap_pro_abs_rule(m,stf, sit, pro):
-    if m.mode['int']:
-        if (sit, pro, stf) in m.inst_pro_tuples:
-            if (sit, pro, min(m.stf)) in m.pro_const_cap_dict:
-                return m.cap_pro[stf, sit, pro] == m.process_dict['inst-cap'][(stf, sit, pro)]
-            else:
-                return m.cap_pro[stf, sit, pro] == \
-                    (sum(m.cap_pro_new[stf_built, sit, pro]
-                         for stf_built in m.stf
-                         if (sit, pro, stf_built, stf)
-                         in m.operational_pro_tuples) +
-                     m.process_dict['inst-cap'][(min(m.stf), sit, pro)])
-        else:
-            return m.cap_pro[stf, sit, pro] == sum(
-                m.cap_pro_new[stf_built, sit, pro]
-                for stf_built in m.stf
-                if (sit, pro, stf_built, stf) in m.operational_pro_tuples)
-    else:
-        if (sit, pro, stf) in m.pro_const_cap_dict:
-            return m.cap_pro[stf, sit, pro] == m.process_dict['inst-cap'][(stf, sit, pro)]
-        else:
-            return m.cap_pro[stf, sit, pro] == (m.cap_pro_new[stf, sit, pro] +
-                       m.process_dict['inst-cap'][(stf, sit, pro)])
-
-
-# [0/1] * lower bound <= process capacity
-def res_process_capacity_rule_low(m,stf, sit, pro):
-    return(m.cap_pro_build[stf, sit, pro] * m.process_dict['cap-lo'][stf, sit, pro] <= m.cap_pro[stf, sit, pro])
-
-# process capacity <= [0/1] * upper bound
-def res_process_capacity_rule_up(m,stf, sit, pro):
-    return(m.cap_pro[stf, sit, pro] <= m.cap_pro_build[stf, sit, pro] * m.process_dict['cap-up'][stf, sit, pro])
-
-#             m.process_dict['cap-lo'][stf, sit, pro],
-#             m.cap_pro[stf, sit, pro],
-#             m.process_dict['cap-up'][stf, sit, pro]
+    for i in pro_mode_startup.index:
+        if not (pro_mode_startup.loc[i] == 0 or pro_mode_startup.loc[i] == 1 or pd.isna(pro_mode_startup.loc[i])):
+            # raise ValueError(i, "Problem with binary value")
+            print('Warning, Boolean Value not 1 or 0:', i, pro_mode_startup.loc[i])
